@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SonoUrban — Suivi Pollution Sonore</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080c14;
+      --surface: #0e1420;
+      --surface2: #141b2d;
+      --border: #1e2a42;
+      --accent: #00e5ff;
+      --accent2: #7b61ff;
+      --green: #00e676;
+      --orange: #ff9100;
+      --red: #ff1744;
+      --text: #e8edf5;
+      --muted: #5a6a85;
+      --font-mono: 'Space Mono', monospace;
+      --font-body: 'DM Sans', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Background grid */
+    body::before {
+      content: '';
+      position: fixed;  
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 0 24px 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 28px 0 32px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 36px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .logo-text h1 {
+      font-family: var(--font-mono);
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+
+    .logo-text p {
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0,230,118,0.1);
+      border: 1px solid rgba(0,230,118,0.3);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--green);
+      letter-spacing: 0.08em;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    .last-update {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    /* ── KPI CARDS ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 20px;
+      position: relative;
+      overflow: hidden;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--card-color, var(--accent));
+      opacity: 0.8;
+    }
+
+    .kpi-card:nth-child(1) { --card-color: var(--accent); animation-delay: 0.05s; }
+    .kpi-card:nth-child(2) { --card-color: var(--green); animation-delay: 0.1s; }
+    .kpi-card:nth-child(3) { --card-color: var(--orange); animation-delay: 0.15s; }
+    .kpi-card:nth-child(4) { --card-color: var(--accent2); animation-delay: 0.2s; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .kpi-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .kpi-value {
+      font-family: var(--font-mono);
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--card-color, var(--accent));
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .kpi-unit {
+      font-size: 0.85rem;
+      font-weight: 400;
+      opacity: 0.6;
+      margin-left: 2px;
+    }
+
+    .kpi-sub {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* ── MAIN GRID ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── PANELS ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      animation: fadeUp 0.5s ease 0.25s both;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .panel-title {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text);
+    }
+
+    .panel-title span {
+      color: var(--accent);
+    }
+
+    /* ── CHART ── */
+    .chart-wrap {
+      position: relative;
+      height: 280px;
+    }
+
+    /* ── CAPTEUR FILTER ── */
+    .filter-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .filter-tab {
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.05em;
+    }
+
+    .filter-tab:hover { border-color: var(--accent); color: var(--accent); }
+    .filter-tab.active {
+      background: rgba(0,229,255,0.12);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── GAUGE ── */
+    .gauge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    .gauge-svg-wrap {
+      position: relative;
+      width: 200px;
+      height: 120px;
+      margin: 0 auto;
+    }
+
+    .gauge-svg-wrap svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    #gaugeArc {
+      transition: stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1), stroke 0.8s ease;
+    }
+    
+    .gauge-center {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+
+    .gauge-db {
+      font-family: var(--font-mono);
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+      transition: color 0.5s;
+    }
+
+    .gauge-unit-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .level-badge {
+      margin-top: 14px;
+      padding: 7px 20px;
+      border-radius: 20px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      text-transform: uppercase;
+      transition: all 0.5s;
+      border: 1px solid currentColor;
+    }
+
+    .level-badge.calme { color: var(--green); background: rgba(0,230,118,0.1); }
+    .level-badge.modere { color: var(--orange); background: rgba(255,145,0,0.1); }
+    .level-badge.nuisance { color: var(--red); background: rgba(255,23,68,0.1); }
+
+    .gauge-scale {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      margin-top: 6px;
+      padding: 0 4px;
+    }
+
+    .gauge-scale span {
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      color: var(--muted);
+    }
+
+    /* ── CAPTEURS STATUS ── */
+    .capteurs-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .capteur-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: var(--surface2);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .capteur-item:hover { border-color: var(--accent); }
+    .capteur-item.active { border-color: var(--accent); background: rgba(0,229,255,0.05); }
+
+    .capteur-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .capteur-info { flex: 1; }
+
+    .capteur-name {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .capteur-loc {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .capteur-db {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    /* ── TABLE ── */
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 700px) {
+      .bottom-grid { grid-template-columns: 1fr; }
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 0 12px 12px;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(30,42,66,0.6);
+      transition: background 0.15s;
+    }
+
+    tbody tr:hover { background: rgba(0,229,255,0.04); }
+
+    tbody td {
+      padding: 10px 12px;
+      color: var(--text);
+    }
+
+    .db-pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 10px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    /* ── ALERTS ── */
+    .alerts-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .alert-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border-left: 3px solid;
+      animation: fadeUp 0.3s ease both;
+    }
+
+    .alert-item.warning {
+      background: rgba(255,145,0,0.07);
+      border-color: var(--orange);
+    }
+
+    .alert-item.danger {
+      background: rgba(255,23,68,0.07);
+      border-color: var(--red);
+    }
+
+    .alert-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+
+    .alert-text { font-size: 0.78rem; color: var(--text); line-height: 1.4; }
+    .alert-time { font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted); margin-top: 3px; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🔊</div>
+      <div class="logo-text">
+        <h1>SonoUrban</h1>
+        <p>Surveillance pollution sonore IoT</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        LIVE
+      </div>
+      <div class="last-update" id="lastUpdate">Mise à jour : --:--:--</div>
+    </div>
+  </header>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Niveau actuel</div>
+      <div class="kpi-value" id="kpiCurrent">--<span class="kpi-unit">dB</span></div>
+      <div class="kpi-sub" id="kpiCapteurName">capteur_01</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Moyenne 24h</div>
+      <div class="kpi-value" id="kpiAvg">--<span class="kpi-unit">dB</span></div>
+      <div class="kpi-sub">Toutes zones</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Pic maximum</div>
+      <div class="kpi-value" id="kpiMax">--<span class="kpi-unit">dB</span></div>
+      <div class="kpi-sub" id="kpiMaxTime">--</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Alertes aujourd'hui</div>
+      <div class="kpi-value" id="kpiAlerts">0<span class="kpi-unit"></span></div>
+      <div class="kpi-sub">Seuil &gt; 70 dB</div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID: chart + gauge -->
+  <div class="main-grid">
+
+    <!-- CHART -->
+  <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Évolution <span>/ Décibels</span></div>
+        <div class="filter-tabs">
+          <!-- <button class="filter-tab active" onclick="setFilter(this,'capteur_01')">Capteur 01</button>
+          <button class="filter-tab" onclick="setFilter(this,'capteur_02')">Capteur 02</button>
+          <button class="filter-tab" onclick="setFilter(this,'capteur_03')">Capteur 03</button> -->
+          <button class="filter-tab active" onclick="setFilter(this,'001')">Capteur 001</button>
+          <button class="filter-tab" onclick="setFilter(this,'all')">Tous</button>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="mainChart"></canvas>
+      </div>
+    </div>
+
+    <!-- GAUGE + CAPTEURS -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- GAUGE -->
+      <div class="panel" style="animation-delay:0.3s">
+        <div class="panel-header">
+          <div class="panel-title">Niveau <span>/ Temps réel</span></div>
+        </div>
+        <div class="gauge-wrap">
+          <div class="gauge-svg-wrap">
+            <svg viewBox="0 0 200 110" fill="none">
+              <!-- background arc -->
+              <path d="M 20 100 A 80 80 0 0 1 180 100" stroke="#1e2a42" stroke-width="14" stroke-linecap="round"/>
+              <!-- colored arc -->
+              <path id="gaugeArc" d="M 20 100 A 80 80 0 0 1 180 100"
+                stroke="#00e5ff" stroke-width="14" stroke-linecap="round"
+                stroke-dasharray="251.2" stroke-dashoffset="251.2"/>
+              <!-- threshold marks -->
+              <line x1="100" y1="20" x2="100" y2="30" stroke="#ff9100" stroke-width="1.5" opacity="0.5"/>
+              <line x1="154" y1="35" x2="148" y2="43" stroke="#ff1744" stroke-width="1.5" opacity="0.5"/>
+            </svg>
+            <div class="gauge-center">
+              <div class="gauge-db" id="gaugeDb">--</div>
+              <div class="gauge-unit-label">décibels</div>
+            </div>
+          </div>
+          <div class="gauge-scale">
+            <span>30</span><span>50</span><span>70</span><span>90</span><span>120</span>
+          </div>
+          <div class="level-badge calme" id="levelBadge">Calme</div>
+        </div>
+      </div>
+
+      <!-- CAPTEURS STATUS -->
+      <div class="panel" style="animation-delay:0.35s">
+        <div class="panel-header">
+          <div class="panel-title">Capteurs <span>/ Statut</span></div>
+        </div>
+        <div class="capteurs-list" id="capteursList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM GRID -->
+  <div class="bottom-grid">
+
+    <!-- TABLE -->
+    <div class="panel" style="animation-delay:0.4s">
+      <div class="panel-header">
+        <div class="panel-title">Dernières <span>/ Mesures</span></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Capteur</th>
+              <th>Lieu</th>
+              <th>Niveau</th>
+              <th>Heure</th>
+            </tr>
+          </thead>
+          <tbody id="mesuresTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ALERTES -->
+    <div class="panel" style="animation-delay:0.45s">
+      <div class="panel-header">
+        <div class="panel-title">Alertes <span>/ Dépassements</span></div>
+      </div>
+      <div class="alerts-list" id="alertsList">
+        <div style="color:var(--muted);font-size:0.8rem;text-align:center;padding:30px 0;">
+          Aucune alerte pour le moment
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────
+// const API_URL   = 'http://localhost:3000';
+const API_URL   = 'http://localhost:3000';
+const REFRESH   = 2000; // ms
+const THRESHOLD_WARN   = 60;
+const THRESHOLD_DANGER = 70;
+
+// ── STATE ────────────────────────────────────────────────────────────
+let allData      = [];
+// let activeFilter = 'capteur_01';
+let activeFilter = '001'
+let alertsLog    = [];
+let chart        = null;
+
+// ── MOCK DATA (remplacer par fetch API réelle) ─────────────────────
+// const CAPTEURS = [
+//   { id: 'capteur_01', loc: 'Avenue Centrale',  base: 58 },
+//   { id: 'capteur_02', loc: 'Place du Marché',  base: 66 },
+//   { id: 'capteur_03', loc: 'Rue des Écoles',   base: 45 },
+// ];
+
+// Ce que tu dois avoir
+const CAPTEURS = [
+  { id: '001', loc: 'IUT Douala', base: 70 },
+]
+
+// 12
+// function generateMockData() {
+//   const now = new Date();
+//   const data = [];
+//   for (let c of CAPTEURS) {
+//     for (let i = 29; i >= 0; i--) {
+//       const t = new Date(now - i * 10000);
+//       const noise = Math.sin(i * 0.4) * 10 + Math.random() * 8 - 4;
+//       data.push({
+//         capteur_id: c.id,
+//         localisation: c.loc,
+//         decibels: Math.round((c.base + noise) * 10) / 10,
+//         timestamp: t.toISOString()
+//       });
+//     }
+//   }
+//   return data;
+// }
+
+// ── FETCH DATA ───────────────────────────────────────────────────────
+// async function fetchData() {
+//   try {
+//     const res = await fetch(`${API_URL}/mesures`);
+//     // const res = await fetch(API_URL);
+//     if (!res.ok) throw new Error('API non disponible');
+//     allData = await res.json();
+//   } catch {
+//     // Mode démo : données simulées
+//     // allData = generateMockData();
+//     allData = []
+//   }
+//   render();
+// }
+
+async function fetchData() {
+  try {
+    const res = await fetch(`${API_URL}/mesures`)
+    if (!res.ok) throw new Error('API non disponible')
+    allData = await res.json()
+
+    // Si pas de données récentes → dashboard vide
+    const cinqMinutes = new Date(Date.now() - 5 * 60 * 1000)
+    const donneesRecentes = allData.filter(d =>
+      new Date(d.timestamp) > cinqMinutes
+    )
+
+    if (donneesRecentes.length === 0) {
+      allData = []
+    }
+
+  } catch {
+    allData = []
+  }
+  render()
+}
+
+// ── FETCH stats ───────────────────────────────────────────────────────
+// async function fetchStats() {
+//   try {
+//     const res = await fetch(`${API_URL}/stats/comparaison`)
+//     const data = await res.json()
+//     updateKPIsFromStats(data)
+//   } catch {
+//     console.log('Stats non disponibles')
+//   }
+// }
+async function fetchStats() {
+  try {
+    const res    = await fetch(`${API_URL}/stats/comparaison`);
+    if (!res.ok) throw new Error('Stats non disponibles');
+    const stats  = await res.json();
+
+    // Mettre à jour la moyenne depuis les stats
+    if (stats.length) {
+      const totalMoyenne = stats.reduce((a, b) => a + b.moyenne, 0) / stats.length;
+      document.getElementById('kpiAvg').innerHTML =
+        `${Math.round(totalMoyenne * 10) / 10}<span class="kpi-unit">dB</span>`;
+    }
+  } catch {
+    console.log('Stats non disponibles');
+  }
+}
+
+
+// ── CHART ─────────────────────────────────────────────────────────────
+function getChartData() {
+  const filtered = activeFilter === 'all'
+    ? allData
+    : allData.filter(d => d.capteur_id === activeFilter);
+
+  const sorted = [...filtered].sort((a,b) => new Date(a.timestamp)-new Date(b.timestamp));
+  const labels = sorted.map(d => {
+    const t = new Date(d.timestamp);
+    return `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}:${String(t.getSeconds()).padStart(2,'0')}`;
+  });
+  const values = sorted.map(d => d.decibels);
+  return { labels, values };
+}
+
+function initChart() {
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  const { labels, values } = getChartData();
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+  gradient.addColorStop(0, 'rgba(0,229,255,0.25)');
+  gradient.addColorStop(1, 'rgba(0,229,255,0)');
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Décibels (dB)',
+        data: values,
+        borderColor: '#00e5ff',
+        backgroundColor: gradient,
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: '#00e5ff',
+        pointHoverRadius: 6,
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0e1420',
+          borderColor: '#1e2a42',
+          borderWidth: 1,
+          titleColor: '#5a6a85',
+          bodyColor: '#e8edf5',
+          titleFont: { family: 'Space Mono', size: 10 },
+          bodyFont: { family: 'Space Mono', size: 12 },
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y} dB`
+          }
+        },
+        annotation: {}
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(30,42,66,0.6)', drawBorder: false },
+          ticks: {
+            color: '#5a6a85',
+            font: { family: 'Space Mono', size: 9 },
+            maxTicksLimit: 8,
+            maxRotation: 0
+          }
+        },
+        y: {
+          min: 20,
+          max: 100,
+          grid: { color: 'rgba(30,42,66,0.6)', drawBorder: false },
+          ticks: {
+            color: '#5a6a85',
+            font: { family: 'Space Mono', size: 9 },
+            callback: v => v + ' dB'
+          }
+        }
+      }
+    }
+  });
+}
+
+function updateChart() {
+  if (!chart) { initChart(); return; }
+  const { labels, values } = getChartData();
+  chart.data.labels = labels;
+  chart.data.datasets[0].data = values;
+  chart.update('none');
+}
+
+// ── GAUGE ────────────────────────────────────────────────────────────
+function updateGauge(db) {
+  const arc   = document.getElementById('gaugeArc');
+  const dbEl  = document.getElementById('gaugeDb');
+  const badge = document.getElementById('levelBadge');
+
+  const min = 30, max = 120;
+  const pct = Math.min(Math.max((db - min) / (max - min), 0), 1);
+  const total = 251.2;
+  arc.style.strokeDashoffset = total - pct * total;
+
+  let color, label, cls;
+  if (db < THRESHOLD_WARN) {
+    color='#00e676'; label='Calme'; cls='calme';
+  } else if (db < THRESHOLD_DANGER) {
+    color='#ff9100'; label='Modéré'; cls='modere';
+  } else {
+    color='#ff1744'; label='Nuisance'; cls='nuisance';
+  }
+  arc.style.stroke = color;
+  dbEl.textContent = db;
+  dbEl.style.color = color;
+  badge.textContent = label;
+  badge.className = `level-badge ${cls}`;
+}
+
+// ── KPI ───────────────────────────────────────────────────────────────
+// function updateKPIs() {
+//   const c01 = allData.filter(d => d.capteur_id === 'capteur_01');
+//   const current = c01.length ? c01[c01.length-1].decibels : 0;
+
+//   const allVals = allData.map(d => d.decibels);
+//   const avg = allVals.length ? Math.round(allVals.reduce((a,b)=>a+b,0)/allVals.length*10)/10 : 0;
+//   const max = allVals.length ? Math.max(...allVals) : 0;
+//   const maxEntry = allData.find(d => d.decibels === max);
+//   const maxTime = maxEntry ? new Date(maxEntry.timestamp).toLocaleTimeString('fr-FR') : '--';
+//   const alertCount = allData.filter(d => d.decibels > THRESHOLD_DANGER).length;
+
+//   document.getElementById('kpiCurrent').innerHTML = `${current}<span class="kpi-unit">dB</span>`;
+//   document.getElementById('kpiAvg').innerHTML     = `${avg}<span class="kpi-unit">dB</span>`;
+//   document.getElementById('kpiMax').innerHTML     = `${max}<span class="kpi-unit">dB</span>`;
+//   document.getElementById('kpiMaxTime').textContent = maxTime;
+//   document.getElementById('kpiAlerts').innerHTML  = `${alertCount}<span class="kpi-unit"></span>`;
+
+//   updateGauge(current);
+// }
+function updateKPIs() {
+  // const c01     = allData.filter(d => d.capteur_id === 'capteur_01');
+  const c01 = allData.filter(d => d.capteur_id === '001')
+  const current = c01.length ? c01[c01.length-1].decibels : '--';
+
+  const allVals    = allData.map(d => d.decibels);
+  const avg        = allVals.length
+    ? Math.round(allVals.reduce((a,b) => a+b, 0) / allVals.length * 10) / 10
+    : '--';
+  const max        = allVals.length ? Math.max(...allVals) : '--';
+  const maxEntry   = allData.find(d => d.decibels === max);
+  const maxTime    = maxEntry
+    ? new Date(maxEntry.timestamp).toLocaleTimeString('fr-FR')
+    : '--';
+  const alertCount = allData.filter(d => d.decibels > THRESHOLD_DANGER).length;
+
+  document.getElementById('kpiCurrent').innerHTML =
+    current !== '--' ? `${current}<span class="kpi-unit">dB</span>` : '--';
+  document.getElementById('kpiAvg').innerHTML =
+    avg !== '--' ? `${avg}<span class="kpi-unit">dB</span>` : '--';
+  document.getElementById('kpiMax').innerHTML =
+    max !== '--' ? `${max}<span class="kpi-unit">dB</span>` : '--';
+  document.getElementById('kpiMaxTime').textContent = maxTime;
+  document.getElementById('kpiAlerts').innerHTML    = `${alertCount}`;
+
+  if (current !== '--') updateGauge(current);
+}
+
+// ── CAPTEURS LIST ─────────────────────────────────────────────────────
+function updateCapteurs() {
+  const el = document.getElementById('capteursList');
+  el.innerHTML = '';
+  for (let c of CAPTEURS) {
+    const last = [...allData].filter(d=>d.capteur_id===c.id).pop();
+    const db = last ? last.decibels : '--';
+    const color = db === '--' ? '#5a6a85' : db < THRESHOLD_WARN ? '#00e676' : db < THRESHOLD_DANGER ? '#ff9100' : '#ff1744';
+    const item = document.createElement('div');
+    item.className = `capteur-item${activeFilter===c.id?' active':''}`;
+    item.onclick = () => { setFilterById(c.id); };
+    item.innerHTML = `
+      <div class="capteur-dot" style="background:${color};box-shadow:0 0 6px ${color}"></div>
+      <div class="capteur-info">
+        <div class="capteur-name">${c.id}</div>
+        <div class="capteur-loc">${c.loc}</div>
+      </div>
+      <div class="capteur-db" style="color:${color}">${db} dB</div>`;
+    el.appendChild(item);
+  }
+}
+
+// ── TABLE ────────────────────────────────────────────────────────────
+// function updateTable() {
+//   const tbody = document.getElementById('mesuresTable');
+//   const recent = [...allData].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,10);
+//   tbody.innerHTML = recent.map(d => {
+//     const db = d.decibels;
+//     const color = db < THRESHOLD_WARN ? '#00e676' : db < THRESHOLD_DANGER ? '#ff9100' : '#ff1744';
+//     const bg = db < THRESHOLD_WARN ? 'rgba(0,230,118,0.1)' : db < THRESHOLD_DANGER ? 'rgba(255,145,0,0.1)' : 'rgba(255,23,68,0.1)';
+//     const t = new Date(d.timestamp).toLocaleTimeString('fr-FR');
+//     return `<tr>
+//       <td style="font-family:var(--font-mono);font-size:0.75rem;color:#00e5ff">${d.capteur_id}</td>
+//       <td style="color:var(--muted)">${d.localisation}</td>
+//       <td><span class="db-pill" style="color:${color};background:${bg}">${db} dB</span></td>
+//       <td style="font-family:var(--font-mono);font-size:0.72rem;color:var(--muted)">${t}</td>
+//     </tr>`;
+//   }).join('');
+// }
+function updateTable() {
+  const tbody  = document.getElementById('mesuresTable');
+
+  if (!allData.length) {
+    tbody.innerHTML = `<tr><td colspan="4"
+      style="text-align:center;color:var(--muted);padding:20px">
+      Aucune donnée disponible
+    </td></tr>`;
+    return;
+  }
+
+  const recent = [...allData]
+    .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, 10);
+
+  tbody.innerHTML = recent.map(d => {
+    const db    = d.decibels;
+    const color = db < THRESHOLD_WARN ? '#00e676'
+      : db < THRESHOLD_DANGER ? '#ff9100' : '#ff1744';
+    const bg    = db < THRESHOLD_WARN ? 'rgba(0,230,118,0.1)'
+      : db < THRESHOLD_DANGER ? 'rgba(255,145,0,0.1)' : 'rgba(255,23,68,0.1)';
+    // const t     = new Date(d.timestamp).toLocaleTimeString('fr-FR');
+    // const t = d.timestamp? new Date(d.timestamp).toLocaleTimeString('fr-FR'):new Date(d._id.toString().substring(0.8), 16*1000).toLocaleTimeString('fr-FR')
+    const rawId = d._id.toString().substring(0, 8)
+    const t = d.timestamp
+  ? new Date(d.timestamp).toLocaleTimeString('fr-FR')
+  : new Date(parseInt(rawId, 16) * 1000).toLocaleTimeString('fr-FR')
+    return `<tr>
+      <td style="font-family:var(--font-mono);font-size:0.75rem;color:#00e5ff">${d.capteur_id}</td>
+      <td style="color:var(--muted)">${d.localisation}</td>
+      <td><span class="db-pill" style="color:${color};background:${bg}">${db} dB</span></td>
+      <td style="font-family:var(--font-mono);font-size:0.72rem;color:var(--muted)">${t}</td>
+    </tr>`;
+  }).join('');
+}
+
+
+// ── ALERTS ───────────────────────────────────────────────────────────
+function checkAlerts() {
+  const recent = [...allData].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,5);
+  const newAlerts = recent.filter(d => d.decibels > THRESHOLD_WARN);
+
+  if (!newAlerts.length) return;
+
+  const el = document.getElementById('alertsList');
+  if (alertsLog.length === 0) el.innerHTML = '';
+
+  for (const d of newAlerts) {
+    const key = `${d.capteur_id}_${d.timestamp}`;
+    if (alertsLog.includes(key)) continue;
+    alertsLog.push(key);
+
+    const isDanger = d.decibels >= THRESHOLD_DANGER;
+    const item = document.createElement('div');
+    item.className = `alert-item ${isDanger ? 'danger' : 'warning'}`;
+    item.innerHTML = `
+      <div class="alert-icon">${isDanger ? '🔴' : '🟠'}</div>
+      <div>
+        <div class="alert-text"><strong>${d.capteur_id}</strong> — ${d.localisation}<br>
+        Niveau ${isDanger ? 'critique' : 'élevé'} : <strong>${d.decibels} dB</strong></div>
+        <div class="alert-time">${new Date(d.timestamp).toLocaleTimeString('fr-FR')}</div>
+      </div>`;
+    el.prepend(item);
+  }
+}
+
+// ── FILTER ────────────────────────────────────────────────────────────
+function setFilter(btn, filter) {
+  document.querySelectorAll('.filter-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  activeFilter = filter;
+  updateChart();
+  updateCapteurs();
+}
+
+function setFilterById(id) {
+  activeFilter = id;
+  document.querySelectorAll('.filter-tab').forEach(b=>{
+    b.classList.toggle('active', b.textContent.toLowerCase().includes(id.replace('capteur_','')));
+  });
+  updateChart();
+  updateCapteurs();
+}
+
+
+
+// ── RENDER ────────────────────────────────────────────────────────────
+function render() {
+  updateKPIs();
+  updateChart();
+  updateCapteurs();
+  updateTable();
+  checkAlerts();
+  document.getElementById('lastUpdate').textContent =
+    'Mise à jour : ' + new Date().toLocaleTimeString('fr-FR');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────
+fetchData();
+fetchStats();
+setInterval(()=> {fetchData();fetchStats()}, REFRESH);
+</script>
+</body>
+</html>
